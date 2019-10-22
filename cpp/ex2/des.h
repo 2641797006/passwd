@@ -2,6 +2,9 @@
 #define _DES_H_
 
 #define QB(q, n)	( (q >> (n-1)) & 1 )
+#define SX(q)	( (QB(q,1) << 1) | QB(q,6) )
+#define SY(q)	( (QB(q,2) << 3) | (QB(q,3) << 2) | (QB(q,4) << 1) | QB(q,5) )
+#define S(q, i)	( s64[i][SX(q)][SY(q)] )
 
 namespace akm {
 
@@ -12,9 +15,11 @@ class Des {
 	using QWORD = uint64_t;
 
   private:
-	static DWORD ip64[64], fp64[64], e48[48];
-	static DWORD s641[4][16], s642[4][16], s643[4][16], s644[4][16],
-		s645[4][16], s646[4][16], s647[4][16], s648[4][16];
+	static DWORD ip64[64], fp64[64], e48[48],
+		s641[4][16], s642[4][16], s643[4][16], s644[4][16],
+		s645[4][16], s646[4][16], s647[4][16], s648[4][16],
+		p32[32];
+	static DWORD (*s64[8])[16];
 	DWORD *d64;
 	QWORD permutation(QWORD, int);
 
@@ -25,6 +30,7 @@ class Des {
 	QWORD final_permutation(QWORD); // 最终排列 fp64
 	QWORD expand(QWORD); // 扩展 32bit -> 48bit
 	QWORD s_box(QWORD); // S-box 48bit -> 32bit
+	QWORD pp(QWORD);
 };
 
 Des::DWORD Des::ip64[64] = {
@@ -116,6 +122,18 @@ Des::DWORD Des::s648[4][16] = {
 {2,1,14,7,4,10,8,13,15,12,9,0,3,5,6,11}
 };
 
+Des::DWORD (*Des::s64[8])[16] = {
+s641, s642, s643, s644,
+s645, s646, s647, s648
+};
+
+Des::DWORD Des::p32[32] = {
+16, 7,20,21,29,12,28,17,
+ 1,15,23,26, 5,18,31,10,
+ 2, 8,24,14,32,27, 3, 9,
+19,13,30, 6,22,11, 4,25
+};
+
 Des::QWORD
 Des::permutation(QWORD q, int flag)
 {
@@ -144,6 +162,17 @@ Des::expand(QWORD q)
 	QWORD r = 0;
 	for (int i=0; i<48; ++i)
 		r |= QB(q, e48[i]) << i;
+	return r;
+}
+
+Des::QWORD
+Des::s_box(QWORD q)
+{
+	QWORD r = 0;
+	for (int i=0; i<8; ++i) {
+		S( (q >> i*6) & 0x3f,  i);
+		r |= QB(q, e48[i]) << i;
+	}
 	return r;
 }
 
