@@ -3,11 +3,11 @@
 
 #include <bitset>
 
-#define _QB(q, n)	( (q >> (n-1)) & 1 )
+#define _QB(q, n)	( (q >> n) & 1 )
 #define QB(q, n)	_QB((q), (n))
 
-#define SX(q)	( (QB(q,1) << 1) | QB(q,6) )
-#define SY(q)	( (QB(q,2) << 3) | (QB(q,3) << 2) | (QB(q,4) << 1) | QB(q,5) )
+#define SX(q)	( (QB(q,5) << 1) | QB(q,0) )
+#define SY(q)	( QB(q,1) | (QB(q,2) << 1) | (QB(q,3) << 2) | QB(q,4) << 3 )
 #define _S(q, i)	( s64[i][SX(q)][SY(q)] )
 #define S(q, i)	_S((q), (i))
 
@@ -39,7 +39,7 @@ class Des {
 
 	QWORD key;
 	QWORD *ckey;
-	QWORD swap_bit(QWORD, DWORD*, int);
+	QWORD swap_bit(QWORD, DWORD*, int, int);
 	QWORD loop_moveL28(QWORD, int);
 
   public:
@@ -59,7 +59,121 @@ class Des {
 	QWORD decrypt(QWORD);
 
 	void binout(QWORD q) { cout<<bitset<64>(q)<<endl; }
+	void binout32(QWORD q) { cout<<bitset<32>(q)<<endl; }
+	void binout28(QWORD q) { cout<<bitset<28>(q)<<endl; }
+	void binout48(QWORD q) { cout<<bitset<48>(q)<<endl; }
+	void binout56(QWORD q) { cout<<bitset<56>(q)<<endl; }
+	void binout6(QWORD q) { cout<<bitset<6>(q)<<endl; }
+	void binout4(QWORD q) { cout<<bitset<4>(q)<<endl; }
 };
+
+Des::QWORD
+Des::swap_bit(QWORD q, DWORD *table, int n, int m)
+{
+	QWORD r = 0;
+	for (int i=0; i<n; ++i) {
+		r <<= 1;
+                r |= QB(q, m - table[i]);
+	}
+	return r;
+}
+
+Des::QWORD
+Des::init_permutation(QWORD q)
+{
+	return swap_bit(q, ip64, 64, 64);
+}
+
+Des::QWORD
+Des::final_permutation(QWORD q)
+{
+	return swap_bit(q, fp64, 64, 64);
+}
+
+Des::QWORD
+Des::expand(QWORD q)
+{
+	return swap_bit(q, e48, 48, 32);
+}
+
+Des::QWORD
+Des::s_box(QWORD q)
+{
+	QWORD r = 0;
+	for (int i=0; i<8; ++i) {
+		r <<= 4;
+                r |= S( (q >> (7-i)*6) & 0x3f,  i);
+	}
+	return r;
+}
+
+Des::QWORD
+Des::pp(QWORD q)
+{
+	return swap_bit(q, p32, 32, 32);
+}
+
+Des::QWORD
+Des::pc1(QWORD q)
+{
+	return swap_bit(q, pc56, 56, 64);
+}
+
+Des::QWORD
+Des::pc2(QWORD q)
+{
+	return swap_bit(q, pc48, 48, 56);
+}
+
+Des::QWORD
+Des::loop_moveL28(QWORD q, int n)
+{
+	QWORD tmp;
+	tmp = q << n;
+	q = (tmp & 0xfffffff) | ((tmp & 0xfffffff0000000) >> 28);
+	return q;
+}
+
+void
+Des::init_ckey()
+{
+	QWORD q, c, d;
+
+	q = pc1(key);
+	c = L28(q);
+	d = R28(q);
+
+	for (int i=0; i<16; ++i) {
+		c = loop_moveL28(c, ls16[i]);
+		d = loop_moveL28(d, ls16[i]);
+		ckey[i] = pc2( c << 28 | d );
+	}
+}
+
+Des::QWORD
+Des::feistel(QWORD r, int i)
+{
+	return pp(s_box( ckey[i] ^ expand(r) ));
+}
+
+Des::QWORD
+Des::encrypt(QWORD q)
+{
+	QWORD ql, qr, tmp;
+	q = init_permutation(q);
+	ql = L32(q);
+	qr = R32(q);
+
+	for (int i=0; i<16; ++i) {
+		tmp = qr;
+		qr = feistel(qr, i) ^ ql;
+		ql = tmp;
+	}
+
+	q = qr << 32 | ql;
+
+	return final_permutation(q);
+}
 
 Des::DWORD Des::ip64[64] = {
 58,50,42,34,26,18,10,2,
@@ -185,110 +299,6 @@ Des::DWORD Des::ls16[16] = {
 1, 1, 2, 2, 2, 2, 2, 2,
 1, 2, 2, 2, 2, 2, 2, 1
 };
-
-Des::QWORD
-Des::swap_bit(QWORD q, DWORD *table, int n)
-{
-	QWORD r = 0;
-	for (int i=0; i<n; ++i)
-		r |= QB(q, table[i]) << i;
-	return r;
-}
-
-Des::QWORD
-Des::loop_moveL28(QWORD q, int n)
-{
-	QWORD tmp;
-	tmp = q << n;
-	q = (tmp & 0xfffffff) | (tmp & 0xfffffff0000000 >> 28);
-	return q;
-}
-
-Des::QWORD
-Des::init_permutation(QWORD q)
-{
-	return swap_bit(q, ip64, 64);
-}
-
-Des::QWORD
-Des::final_permutation(QWORD q)
-{
-	return swap_bit(q, fp64, 64);
-}
-
-Des::QWORD
-Des::expand(QWORD q)
-{
-	return swap_bit(q, e48, 48);
-}
-
-Des::QWORD
-Des::s_box(QWORD q)
-{
-	QWORD r = 0;
-	for (int i=0; i<8; ++i)
-		r |= S( (q >> i*6) & 0x3f,  i) << i*4;
-	return r;
-}
-
-Des::QWORD
-Des::pp(QWORD q)
-{
-	return swap_bit(q, p32, 32);
-}
-
-Des::QWORD
-Des::pc1(QWORD q)
-{
-	return swap_bit(q, pc56, 56);
-}
-
-Des::QWORD
-Des::pc2(QWORD q)
-{
-	return swap_bit(q, pc48, 48);
-}
-
-void
-Des::init_ckey()
-{
-	QWORD q, c, d;
-	q = pc1(key);
-binout(q);
-	c = L28(q);
-	d = R28(q);
-
-	for (int i=0; i<16; ++i) {
-		c = loop_moveL28(c, ls16[i]);
-		d = loop_moveL28(d, ls16[i]);
-		ckey[i] = pc2( c << 28 | d );
-	}
-}
-
-Des::QWORD
-Des::feistel(QWORD r, int i)
-{
-	return pp(s_box( ckey[i] ^ expand(r) ));
-}
-
-Des::QWORD
-Des::encrypt(QWORD q)
-{
-	QWORD ql, qr, tmp;
-	q = init_permutation(q);
-	ql = L32(q);
-	qr = R32(q);
-
-	for (int i=0; i<16; ++i) {
-		tmp = qr;
-		qr = feistel(qr, i) ^ ql;
-		ql = tmp;
-	}
-
-	q = qr << 32 | ql;
-
-	return final_permutation(q);
-}
 
 } // namespace akm
 
