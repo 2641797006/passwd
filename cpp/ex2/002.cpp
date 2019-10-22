@@ -1,12 +1,17 @@
 #include <iostream>
+#include <cstring>
+#include "des.h"
 using namespace std;
-
-int a[2][2] = {{6, 7},{2, 3}};
-int b[2][2] = {{66, 77},{22,33}};
-int (*p[2])[2] = {a, b};
+using namespace akm;
 
 int main()
 {
-	
+	Des::QWORD q=0;
+	Des des(0x133457799BBCDFF1);
+
+	q = des.encrypt(0x1234567890ABCDEF);
+	cout<<hex<< q <<endl;
+	q = des.decrypt(q);
+	cout<<hex<< q <<endl;
 }
 

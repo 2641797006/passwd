@@ -41,6 +41,7 @@ class Des {
 	QWORD *ckey;
 	QWORD swap_bit(QWORD, DWORD*, int, int);
 	QWORD loop_moveL28(QWORD, int);
+	QWORD loop_moveR28(QWORD, int);
 
   public:
 	Des(QWORD q){ key = q; ckey = new QWORD[16]; init_ckey(); }
@@ -134,6 +135,12 @@ Des::loop_moveL28(QWORD q, int n)
 	return q;
 }
 
+Des::QWORD
+Des::loop_moveR28(QWORD q, int n)
+{
+	return (q >> n) | ((q << (28-n)) & 0xfffffff );
+}
+
 void
 Des::init_ckey()
 {
@@ -167,6 +174,25 @@ Des::encrypt(QWORD q)
 	for (int i=0; i<16; ++i) {
 		tmp = qr;
 		qr = feistel(qr, i) ^ ql;
+		ql = tmp;
+	}
+
+	q = qr << 32 | ql;
+
+	return final_permutation(q);
+}
+
+Des::QWORD
+Des::decrypt(QWORD q)
+{
+	QWORD ql, qr, tmp;
+	q = init_permutation(q);
+	ql = L32(q);
+	qr = R32(q);
+
+	for (int i=0; i<16; ++i) {
+		tmp = qr;
+		qr = feistel(qr, 15-i) ^ ql;
 		ql = tmp;
 	}
 
