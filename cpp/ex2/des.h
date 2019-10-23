@@ -5,10 +5,6 @@
 #include <string>
 #endif
 
-#ifndef _GLIBCXX_VECTOR
-#include <vector>
-#endif
-
 #ifndef _GLIBCXX_FSTREAM
 #include <fstream>
 #endif
