@@ -80,8 +80,6 @@ class Des {
 	QWORD feistel(QWORD, int);
 	QWORD encrypt(QWORD);
 	QWORD decrypt(QWORD);
-	vector<char> encrypt(vector<char> const&);
-	vector<char> decrypt(vector<char> const&);
 	string encrypt(string const&);
 	string decrypt(string const&);
 	void crypt(fstream&, fstream&, int flag);
@@ -232,63 +230,45 @@ Des::decrypt(QWORD q)
 	return final_permutation(q);
 }
 
-vector<char>
-Des::encrypt(vector<char> const& vc)
-{
-	static const string err = "error encrypt";
-	static const vector<char> errv(err.begin(), err.end());
-	vector<char> evc = vc;
-	QWORD size = evc.size();
-	if ( ! size )
-		return errv;
-	size_t n = size % 8;
-	if ( n )
-		evc.resize( size-n+8, 0 );
-	n = evc.size() / 8;
-	QWORD *data = (QWORD*)evc.data();
-	for (size_t i=0; i<n; ++i)
-		data[i] = encrypt(data[i]);
-	evc.resize( evc.size() + 8 );
-	data = (QWORD*)evc.data();
-	data[n] = size;
-	return evc;
-}
-
-vector<char>
-Des::decrypt(vector<char> const& vc)
-{
-	static const string err = "error decrypt";
-	static const vector<char> errv(err.begin(), err.end());
-	vector<char> dvc = vc;
-	if ( dvc.size()<=8 || dvc.size()%8 )
-		return errv;
-	QWORD *data = (QWORD*)dvc.data();
-	size_t n = dvc.size()/8 - 1;
-	QWORD size = data[n];
-	if ( dvc.size() - size >= 16 || dvc.size() - size < 8 )
-		return errv;
-	dvc.resize( dvc.size() - 8 );
-	data = (QWORD*)dvc.data();
-	for (size_t i=0; i<n; ++i)
-		data[i] = decrypt(data[i]);
-	dvc.resize( size );
-	return dvc;
-}
-
 string
 Des::encrypt(string const& s)
 {
-	vector<char> vc(s.begin(), s.end());
-	vc = encrypt(vc);
-	return string(vc.begin(), vc.end());
+	static const string err = "error encrypt";
+	string es = s;
+	QWORD size = es.size();
+	if ( ! size )
+		return err;
+	size_t n = size % 8;
+	if ( n )
+		es.resize( size-n+8, 0 );
+	n = es.size() / 8;
+	QWORD *data = (QWORD*)&es[0];
+	for (size_t i=0; i<n; ++i)
+		data[i] = encrypt(data[i]);
+	es.resize( es.size() + 8 );
+	data = (QWORD*)&es[0];
+	data[n] = size;
+	return es;
 }
 
 string
 Des::decrypt(string const& s)
 {
-	vector<char> vc(s.begin(), s.end());
-	vc = decrypt(vc);
-	return string(vc.begin(), vc.end());
+	static const string err = "error decrypt";
+	string ds = s;
+	if ( ds.size()<=8 || ds.size()%8 )
+		return err;
+	QWORD *data = (QWORD*)&ds[0];
+	size_t n = ds.size()/8 - 1;
+	QWORD size = data[n];
+	if ( ds.size() - size >= 16 || ds.size() - size < 8 )
+		return err;
+	ds.resize( ds.size() - 8 );
+	data = (QWORD*)&ds[0];
+	for (size_t i=0; i<n; ++i)
+		data[i] = decrypt(data[i]);
+	ds.resize( size );
+	return ds;
 }
 
 void
@@ -298,12 +278,12 @@ Des::crypt(fstream& in, fstream& out, int flag)
 	size_t size = in.tellg();
 	if ( ! size )
 		return;
-	vector<char> vc;
-	vc.resize( size );
+	string s;
+	s.resize( size );
 	in.seekg(0);
-	in.read( vc.data(), size );
-	vc = flag ? encrypt(vc) : decrypt(vc);
-	out.write( vc.data(), vc.size() );
+	in.read( &s[0], size );
+	s = flag ? encrypt(s) : decrypt(s);
+	out.write( &s[0], s.size() );
 }
 
 void
