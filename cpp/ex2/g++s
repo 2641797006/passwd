@@ -1,0 +1,3 @@
+#!/bin/bash
+g++ -pedantic-errors -Wall ${1}.cpp -c
+g++ -pedantic-errors -Wall ${1}.o md5sum.o -o ${1}

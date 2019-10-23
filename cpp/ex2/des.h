@@ -9,6 +9,14 @@
 #include <vector>
 #endif
 
+#ifndef _GLIBCXX_FSTREAM
+#include <fstream>
+#endif
+
+#ifndef _MD5SUM_H_
+#include "md5sum.h"
+#endif
+
 #define _QB(q, n)	( (q >> n) & 1 )
 #define QB(q, n)	_QB((q), (n))
 
@@ -43,15 +51,24 @@ class Des {
 		(*s64[8])[16],
 		p32[32], pc56[56], pc48[48], ls16[16];
 
+	md5sum md5;
 	QWORD key;
 	QWORD *ckey;
 	QWORD swap_bit(QWORD, DWORD*, int, int);
 	QWORD loop_moveL28(QWORD, int);
 	QWORD loop_moveR28(QWORD, int);
+	void new_ckey() { ckey = new QWORD[16]; }
+	void init_ckey();
 
   public:
-	Des(QWORD q){ key = q; ckey = new QWORD[16]; init_ckey(); }
-	~Des(){ delete[] ckey; }
+	Des(QWORD q=0) { new_ckey(); set_key(q); }
+	Des(string const& s) { new_ckey(); set_key(s); }
+	~Des() { delete[] ckey; }
+
+	void set_key(QWORD q) { key = q; init_ckey(); }
+	void set_key(string const&);
+	QWORD get_key() { return key; }
+
 	QWORD init_permutation(QWORD); // 初始化排列 ip64
 	QWORD final_permutation(QWORD); // 最终排列 fp64
 	QWORD expand(QWORD); // 扩展 32bit -> 48bit
@@ -60,7 +77,6 @@ class Des {
 	QWORD pc1(QWORD); // key:64bit -> 56bit
 	QWORD pc2(QWORD); // pc1:56bit -> 48bit
 
-	void init_ckey();
 	QWORD feistel(QWORD, int);
 	QWORD encrypt(QWORD);
 	QWORD decrypt(QWORD);
@@ -68,7 +84,36 @@ class Des {
 	vector<char> decrypt(vector<char> const&);
 	string encrypt(string const&);
 	string decrypt(string const&);
+	void crypt(fstream&, fstream&, int flag);
+	void encrypt(fstream&, fstream&);
+	void decrypt(fstream&, fstream&);
 };
+
+void
+Des::init_ckey()
+{
+	QWORD q, c, d;
+
+	q = pc1(key);
+	c = L28(q);
+	d = R28(q);
+
+	for (int i=0; i<16; ++i) {
+		c = loop_moveL28(c, ls16[i]);
+		d = loop_moveL28(d, ls16[i]);
+		ckey[i] = pc2( c << 28 | d );
+	}
+}
+
+void
+Des::set_key(string const& s)
+{
+	md5(s);
+	QWORD a = md5.getA();
+	QWORD c = md5.getC();
+	key = a << 32 | c;
+	init_ckey();
+}
 
 Des::QWORD
 Des::swap_bit(QWORD q, DWORD *table, int n, int m)
@@ -143,22 +188,6 @@ Des::loop_moveR28(QWORD q, int n)
 	return (q >> n) | ((q << (28-n)) & 0xfffffff );
 }
 
-void
-Des::init_ckey()
-{
-	QWORD q, c, d;
-
-	q = pc1(key);
-	c = L28(q);
-	d = R28(q);
-
-	for (int i=0; i<16; ++i) {
-		c = loop_moveL28(c, ls16[i]);
-		d = loop_moveL28(d, ls16[i]);
-		ckey[i] = pc2( c << 28 | d );
-	}
-}
-
 Des::QWORD
 Des::feistel(QWORD r, int i)
 {
@@ -222,7 +251,7 @@ Des::encrypt(vector<char> const& vc)
 	evc.resize( evc.size() + 8 );
 	data = (QWORD*)evc.data();
 	data[n] = size;
-	return evc;
+	return move(evc);
 }
 
 vector<char>
@@ -243,23 +272,50 @@ Des::decrypt(vector<char> const& vc)
 	for (size_t i=0; i<n; ++i)
 		data[i] = decrypt(data[i]);
 	dvc.resize( size );
-	return dvc;
+	return move(dvc);
 }
 
 string
 Des::encrypt(string const& s)
 {
 	vector<char> vc(s.begin(), s.end());
-	vc = encrypt(vc);
-	return string(vc.begin(), vc.end());
+	vc = move( encrypt(vc) );
+	return move( string(vc.begin(), vc.end()) );
 }
 
 string
 Des::decrypt(string const& s)
 {
 	vector<char> vc(s.begin(), s.end());
-	vc = decrypt(vc);
-	return string(vc.begin(), vc.end());
+	vc = move( decrypt(vc) );
+	return move( string(vc.begin(), vc.end()) );
+}
+
+void
+Des::crypt(fstream& in, fstream& out, int flag)
+{
+	in.seekg(0, ios_base::end);
+	size_t size = in.tellg();
+	if ( ! size )
+		return;
+	vector<char> vc;
+	vc.resize( size );
+	in.seekg(0);
+	in.read( vc.data(), size );
+	vc = move( flag ? encrypt(vc) : decrypt(vc) );
+	out.write( vc.data(), vc.size() );
+}
+
+void
+Des::encrypt(fstream& in, fstream& out)
+{
+	crypt(in, out, 1);
+}
+
+void
+Des::decrypt(fstream& in, fstream& out)
+{
+	crypt(in, out, 0);
 }
 
 Des::DWORD Des::ip64[64] = {

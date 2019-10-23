@@ -7,7 +7,7 @@ using namespace akm;
 
 int main()
 {
-	Des des(0x12345ff68236);
+	Des des("I love you");
 	string s;
 	vector<char> vc;
 
