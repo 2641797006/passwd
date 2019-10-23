@@ -1,7 +1,13 @@
 #ifndef _DES_H_
 #define _DES_H_
 
-#include <bitset>
+#ifndef _GLIBCXX_STRING
+#include <string>
+#endif
+
+#ifndef _GLIBCXX_VECTOR
+#include <vector>
+#endif
 
 #define _QB(q, n)	( (q >> n) & 1 )
 #define QB(q, n)	_QB((q), (n))
@@ -58,14 +64,10 @@ class Des {
 	QWORD feistel(QWORD, int);
 	QWORD encrypt(QWORD);
 	QWORD decrypt(QWORD);
-
-	void binout(QWORD q) { cout<<bitset<64>(q)<<endl; }
-	void binout32(QWORD q) { cout<<bitset<32>(q)<<endl; }
-	void binout28(QWORD q) { cout<<bitset<28>(q)<<endl; }
-	void binout48(QWORD q) { cout<<bitset<48>(q)<<endl; }
-	void binout56(QWORD q) { cout<<bitset<56>(q)<<endl; }
-	void binout6(QWORD q) { cout<<bitset<6>(q)<<endl; }
-	void binout4(QWORD q) { cout<<bitset<4>(q)<<endl; }
+	vector<char> encrypt(vector<char> const&);
+	vector<char> decrypt(vector<char> const&);
+	string encrypt(string const&);
+	string decrypt(string const&);
 };
 
 Des::QWORD
@@ -199,6 +201,65 @@ Des::decrypt(QWORD q)
 	q = qr << 32 | ql;
 
 	return final_permutation(q);
+}
+
+vector<char>
+Des::encrypt(vector<char> const& vc)
+{
+	static const string err = "error encrypt";
+	static const vector<char> errv(err.begin(), err.end());
+	vector<char> evc = vc;
+	QWORD size = evc.size();
+	if ( ! size )
+		return errv;
+	size_t n = size % 8;
+	if ( n )
+		evc.resize( size-n+8, 0 );
+	n = evc.size() / 8;
+	QWORD *data = (QWORD*)evc.data();
+	for (size_t i=0; i<n; ++i)
+		data[i] = encrypt(data[i]);
+	evc.resize( evc.size() + 8 );
+	data = (QWORD*)evc.data();
+	data[n] = size;
+	return evc;
+}
+
+vector<char>
+Des::decrypt(vector<char> const& vc)
+{
+	static const string err = "error decrypt";
+	static const vector<char> errv(err.begin(), err.end());
+	vector<char> dvc = vc;
+	if ( dvc.size()<=8 || dvc.size()%8 )
+		return errv;
+	QWORD *data = (QWORD*)dvc.data();
+	size_t n = dvc.size()/8 - 1;
+	QWORD size = data[n];
+	if ( dvc.size() - size >= 16 || dvc.size() - size < 8 )
+		return errv;
+	dvc.resize( dvc.size() - 8 );
+	data = (QWORD*)dvc.data();
+	for (size_t i=0; i<n; ++i)
+		data[i] = decrypt(data[i]);
+	dvc.resize( size );
+	return dvc;
+}
+
+string
+Des::encrypt(string const& s)
+{
+	vector<char> vc(s.begin(), s.end());
+	vc = encrypt(vc);
+	return string(vc.begin(), vc.end());
+}
+
+string
+Des::decrypt(string const& s)
+{
+	vector<char> vc(s.begin(), s.end());
+	vc = decrypt(vc);
+	return string(vc.begin(), vc.end());
 }
 
 Des::DWORD Des::ip64[64] = {
