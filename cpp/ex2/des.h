@@ -251,7 +251,7 @@ Des::encrypt(vector<char> const& vc)
 	evc.resize( evc.size() + 8 );
 	data = (QWORD*)evc.data();
 	data[n] = size;
-	return move(evc);
+	return evc;
 }
 
 vector<char>
@@ -272,23 +272,23 @@ Des::decrypt(vector<char> const& vc)
 	for (size_t i=0; i<n; ++i)
 		data[i] = decrypt(data[i]);
 	dvc.resize( size );
-	return move(dvc);
+	return dvc;
 }
 
 string
 Des::encrypt(string const& s)
 {
 	vector<char> vc(s.begin(), s.end());
-	vc = move( encrypt(vc) );
-	return move( string(vc.begin(), vc.end()) );
+	vc = encrypt(vc);
+	return string(vc.begin(), vc.end());
 }
 
 string
 Des::decrypt(string const& s)
 {
 	vector<char> vc(s.begin(), s.end());
-	vc = move( decrypt(vc) );
-	return move( string(vc.begin(), vc.end()) );
+	vc = decrypt(vc);
+	return string(vc.begin(), vc.end());
 }
 
 void
@@ -302,7 +302,7 @@ Des::crypt(fstream& in, fstream& out, int flag)
 	vc.resize( size );
 	in.seekg(0);
 	in.read( vc.data(), size );
-	vc = move( flag ? encrypt(vc) : decrypt(vc) );
+	vc = flag ? encrypt(vc) : decrypt(vc);
 	out.write( vc.data(), vc.size() );
 }
 
