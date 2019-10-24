@@ -13,68 +13,23 @@ class Base64{
 	using DWORD = uint32_t;
 
   private:
-	static DWORD b64[64];
-	static char c256[256];
+	DWORD fill;
+	DWORD *b64;
+	char *c256;
 
   public:
-	Base64(){}
-	~Base64(){}
+	Base64(char c62='+', char c63='/', char f='=');
+	~Base64(){ delete[] b64; delete[] c256; }
 	string operator() (string const&);
 	string operator[] (string const&);
 	string encode(string const& s) { return (*this)(s); }
+	string decode(string const& s) { return (*this)[s]; }
 };
 
-string
-Base64::operator() (string const& s)
+Base64::Base64(char c62, char c63, char f)
 {
-	string es;
-	if ( ! s.size() )
-		return es;
-	int n = s.size()/3;
-	int m = s.size()%3;
-	DWORD *data, a, b, c;
-	es.resize( (n + m?1:0 )*4 );
-	data = (DWORD*)&es[0];
-	for (int i=0; i<n; ++i) {
-		a = s[i], b = s[i+1], c = s[i+2];
-		data[i] = b64[a>>2] | b64[(a&0x3)<<4 | b>>4] << 8 |
-			 b64[(b&0xf)<<2 | c>>6] << 16 | b64[c&0x3f] << 24;
-	}
-	if ( m ) {
-		a = s[n];
-		b = m>1 ? s[n+1] : 0;
-		c = 0;
-		data[n] = b64[a>>2] | b64[(a&0x3)<<4 | b>>4] << 8 |
-			 (m>1 ? b64[(b&0xf)<<2] : '=') << 16 | '=' << 24;
-	}
-	return es;
-}
 
-string
-Base64::operator[] (string const& s)
-{
-	string ds;
-	if ( ! s.size() || s.size()%4 )
-		return ds;
-	int n = s.size()/4;
-	DWORD a, b, c;
-	ds.resize( n*3 );
-	for (int i=0; i<n; ++i) {
-		a = s[i], b = s[i+1], c = s[i+2];
-		data[i] = b64[a>>2] | b64[(a&0x3)<<4 | b>>4] << 8 |
-			 b64[(b&0xf)<<2 | c>>6] << 16 | b64[c&0x3f] << 24;
-	}
-	if ( m ) {
-		a = s[n];
-		b = m>1 ? s[n+1] : 0;
-		c = 0;
-		data[n] = b64[a>>2] | b64[(a&0x3)<<4 | b>>4] << 8 |
-			 (m>1 ? b64[(b&0xf)<<2] : '=') << 16 | '=' << 24;
-	}
-	return ds;
-}
-
-Base64::DWORD Base64::b64[64] = {
+b64 = new DWORD[64] {
 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H',
 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P',
 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X',
@@ -85,7 +40,7 @@ Base64::DWORD Base64::b64[64] = {
 '4', '5', '6', '7', '8', '9', '+', '/'
 };
 
-char Base64::c256[256] =
+c256 = new char[256]
 {      -1,
        -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
        -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
@@ -116,6 +71,69 @@ char Base64::c256[256] =
        -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
        -1,   -1,   -1,   -1,   -1
 } ;
+
+	b64[62] = c62;
+	b64[63] = c63;
+	fill = f;
+}
+
+string
+Base64::operator() (string const& s)
+{
+	string es;
+	if ( ! s.size() )
+		return es;
+	int n = s.size()/3;
+	int m = s.size()%3;
+	DWORD *data, a, b, c;
+	es.resize( (n + (m?1:0) )*4 );
+	data = (DWORD*)&es[0];
+	for (int i=0,i3=0; i<n; ++i,i3+=3) {
+		a = s[i3], b = s[i3+1], c = s[i3+2];
+		data[i] = b64[a>>2] | b64[(a&0x3)<<4 | b>>4] << 8 |
+			 b64[(b&0xf)<<2 | c>>6] << 16 | b64[c&0x3f] << 24;
+	}
+	if ( m ) {
+		a = s[n*3];
+		b = m>1 ? s[n*3+1] : 0;
+		c = 0;
+		data[n] = b64[a>>2] | b64[(a&0x3)<<4 | b>>4] << 8 |
+			 (m>1 ? b64[(b&0xf)<<2] : fill) << 16 | fill << 24;
+	}
+	return es;
+}
+
+string
+Base64::operator[] (string const& _s)
+{
+	static const string err = "base64: error decrypt";
+	string s = _s;
+	string ds;
+	if ( ! s.size() || s.size()%4 )
+		return err;
+	int fill_num = 0;
+	if ( (unsigned)s[s.size()-1] == fill ) {
+		s[s.size()-1] = '0', ++fill_num;
+		if ( (unsigned)s[s.size()-2] == fill )
+			s[s.size()-2] = '0', ++fill_num;
+	}
+	int n = s.size()/4;
+	DWORD a[4];
+	ds.resize( n*3 );
+	for (int i=0,i3=0,i4=0; i<n; ++i,i3+=3,i4+=4) {
+		for (int j=0; j<4; ++j) {
+			char c = c256[(uint8_t)s[i4+j]];
+			if ( c < 0 )
+				return err;
+			a[j] = c;
+		}
+		ds[i3] = a[0] << 2 | a[1] >> 4;
+		ds[i3+1] = a[1] << 4 | a[2] >> 2;
+		ds[i3+2] = a[2] << 6 | a[3];
+	}
+	ds.resize(ds.size() - fill_num);
+	return ds;
+}
 
 } // namespace akm
 
