@@ -89,7 +89,7 @@ Base64::operator() (string const& s)
 	es.resize( (n + (m?1:0) )*4 );
 	data = (DWORD*)&es[0];
 	for (int i=0,i3=0; i<n; ++i,i3+=3) {
-		a = s[i3], b = s[i3+1], c = s[i3+2];
+		a = s[i3]&0xff, b = s[i3+1]&0xff, c = s[i3+2]&0xff;
 		data[i] = b64[a>>2] | b64[(a&0x3)<<4 | b>>4] << 8 |
 			 b64[(b&0xf)<<2 | c>>6] << 16 | b64[c&0x3f] << 24;
 	}
@@ -122,7 +122,7 @@ Base64::operator[] (string const& _s)
 	ds.resize( n*3 );
 	for (int i=0,i3=0,i4=0; i<n; ++i,i3+=3,i4+=4) {
 		for (int j=0; j<4; ++j) {
-			char c = c256[(uint8_t)s[i4+j]];
+			char c = c256[(unsigned)s[i4+j]&0xff];
 			if ( c < 0 )
 				return err;
 			a[j] = c;
