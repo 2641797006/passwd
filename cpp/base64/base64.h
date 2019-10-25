@@ -10,6 +10,7 @@ using namespace std;
 
 class Base64{
   public:
+	using BYTE = uint8_t;
 	using DWORD = uint32_t;
 
   private:
@@ -46,7 +47,7 @@ c256 = new char[256]
        -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
        -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
        -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
-       -1,   -1,   62,   -1,   -1,   -1,   63,   52,   53,   54,
+       -1,   -1,   -1,   -1,   -1,   -1,   -1,   52,   53,   54,
        55,   56,   57,   58,   59,   60,   61,   -1,   -1,   -1,
        -1,   -1,   -1,   -1,    0,    1,    2,    3,    4,    5,
         6,    7,    8,    9,   10,   11,   12,   13,   14,   15,
@@ -72,8 +73,10 @@ c256 = new char[256]
        -1,   -1,   -1,   -1,   -1
 } ;
 
-	b64[62] = c62;
-	b64[63] = c63;
+	b64[62] = (BYTE)c62;
+	b64[63] = (BYTE)c63;
+	c256[b64[62]] = 62;
+	c256[b64[63]] = 63;
 	fill = f;
 }
 
@@ -89,13 +92,13 @@ Base64::operator() (string const& s)
 	es.resize( (n + (m?1:0) )*4 );
 	data = (DWORD*)&es[0];
 	for (int i=0,i3=0; i<n; ++i,i3+=3) {
-		a = s[i3]&0xff, b = s[i3+1]&0xff, c = s[i3+2]&0xff;
+		a = (BYTE)s[i3], b = (BYTE)s[i3+1], c = (BYTE)s[i3+2];
 		data[i] = b64[a>>2] | b64[(a&0x3)<<4 | b>>4] << 8 |
 			 b64[(b&0xf)<<2 | c>>6] << 16 | b64[c&0x3f] << 24;
 	}
 	if ( m ) {
-		a = s[n*3];
-		b = m>1 ? s[n*3+1] : 0;
+		a = (BYTE)s[n*3];
+		b = m>1 ? (BYTE)s[n*3+1] : 0;
 		c = 0;
 		data[n] = b64[a>>2] | b64[(a&0x3)<<4 | b>>4] << 8 |
 			 (m>1 ? b64[(b&0xf)<<2] : fill) << 16 | fill << 24;
@@ -112,9 +115,9 @@ Base64::operator[] (string const& _s)
 	if ( ! s.size() || s.size()%4 )
 		return err;
 	int fill_num = 0;
-	if ( (unsigned)s[s.size()-1] == fill ) {
+	if ( (BYTE)s[s.size()-1] == fill ) {
 		s[s.size()-1] = '0', ++fill_num;
-		if ( (unsigned)s[s.size()-2] == fill )
+		if ( (BYTE)s[s.size()-2] == fill )
 			s[s.size()-2] = '0', ++fill_num;
 	}
 	int n = s.size()/4;
@@ -122,7 +125,7 @@ Base64::operator[] (string const& _s)
 	ds.resize( n*3 );
 	for (int i=0,i3=0,i4=0; i<n; ++i,i3+=3,i4+=4) {
 		for (int j=0; j<4; ++j) {
-			char c = c256[(unsigned)s[i4+j]&0xff];
+			char c = c256[(BYTE)s[i4+j]];
 			if ( c < 0 )
 				return err;
 			a[j] = c;
