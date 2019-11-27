@@ -1,7 +1,7 @@
 cc = g++
 
 .PHONY: clean
-exe: 001
+it: 001
 	@echo make OK
 
 001: 001.cpp des.h base64.h md5sum.h  des.o base64.o md5sum.o
